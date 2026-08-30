@@ -1,11 +1,12 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
 
-export async function reviewProofAction(proofId: string, decision: "APPROVED" | "REJECTED", reason?: string) {
-  const session = await auth();
+export async function reviewProofAction(proofId: string, decision: "APPROVED" | "REJECTED" | "REST", reason?: string) {
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { error: "Unauthorized." };
 
   try {
@@ -25,7 +26,62 @@ export async function reviewProofAction(proofId: string, decision: "APPROVED" | 
       return { error: "Unauthorized to review this proof." };
     }
 
-    // Create review
+    if (decision === "REST") {
+      const targetMember = proof.challenge.members.find(m => m.userId === proof.userId);
+      if (!targetMember) return { error: "Member not found." };
+
+      // Count existing rest days
+      const existingRestDays = await prisma.restDay.count({
+        where: { userId: targetMember.userId, challengeId: targetMember.challengeId }
+      });
+
+      const exceedsAllowed = existingRestDays >= proof.challenge.allowedRestDays;
+
+      // Create RestDay record
+      await prisma.restDay.create({
+        data: {
+          userId: targetMember.userId,
+          challengeId: targetMember.challengeId,
+          date: proof.dailyEntry.date,
+          causedLifeLoss: exceedsAllowed
+        }
+      });
+
+      if (exceedsAllowed && targetMember.lives > 0) {
+        // Deduct life
+        await prisma.challengeMember.update({
+          where: { id: targetMember.id },
+          data: { lives: targetMember.lives - 1 }
+        });
+        
+        await prisma.lifeEvent.create({
+          data: {
+            userId: targetMember.userId,
+            challengeId: targetMember.challengeId,
+            previousBalance: targetMember.lives,
+            amount: -1,
+            newBalance: targetMember.lives - 1,
+            reason: "Exceeded allowed rest days.",
+            source: "SYSTEM"
+          }
+        });
+      }
+
+      await prisma.proofSubmission.update({
+        where: { id: proof.id },
+        data: { status: "REST" }
+      });
+      
+      await prisma.dailyEntry.update({
+        where: { id: proof.dailyEntryId },
+        data: { status: "REST" }
+      });
+      
+      revalidatePath("/dashboard");
+      return { success: true };
+    }
+
+    // Standard Approved/Rejected Flow
     await prisma.proofReview.create({
       data: {
         proofSubmissionId: proof.id,
@@ -35,19 +91,16 @@ export async function reviewProofAction(proofId: string, decision: "APPROVED" | 
       }
     });
 
-    // Update proof status
     await prisma.proofSubmission.update({
       where: { id: proofId },
       data: { status: decision }
     });
 
-    // Update daily entry status
     await prisma.dailyEntry.update({
       where: { id: proof.dailyEntryId },
       data: { status: decision === "APPROVED" ? "WORKOUT_APPROVED" : "WORKOUT_REJECTED" }
     });
 
-    // If rejected, remove life
     if (decision === "REJECTED") {
       const targetMember = proof.challenge.members.find(m => m.userId === proof.userId);
       if (targetMember && targetMember.lives > 0) {

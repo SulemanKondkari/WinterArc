@@ -1,4 +1,4 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 
 export default async function OnboardingLayout({
@@ -6,7 +6,8 @@ export default async function OnboardingLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 
   return (

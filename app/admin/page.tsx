@@ -1,10 +1,11 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Image from "next/image";
 
 export default async function AdminDashboardPage() {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.email) redirect("/login");
 
   // Basic authorization: Only the admin email (you can change this to a role column)

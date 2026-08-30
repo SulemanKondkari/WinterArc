@@ -1,11 +1,12 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
 export default async function InvitePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 
   const challenge = await prisma.challenge.findUnique({

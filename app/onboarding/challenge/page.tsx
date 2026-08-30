@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { redirect } from "next/navigation";
 
 export default async function ChallengeDecisionPage() {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 
   return (

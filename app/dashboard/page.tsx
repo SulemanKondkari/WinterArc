@@ -1,14 +1,17 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { format, differenceInDays } from "date-fns";
+import { differenceInDays, startOfDay } from "date-fns";
+import { toZonedTime } from "date-fns-tz";
 import { LivesModule } from "./lives-module";
 import { CalendarModule } from "./calendar-module";
 import { PartnerReview } from "./partner-review";
+import { TransformationModule } from "./transformation-module";
 
 export default async function DashboardPage() {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 
   const allMemberships = await prisma.challengeMember.findMany({
@@ -31,7 +34,46 @@ export default async function DashboardPage() {
   const partner = challenge.members.find(m => m.userId !== session.user?.id);
   const me = challenge.members.find(m => m.userId === session.user?.id)!;
 
-  const currentDay = challenge.startDate ? differenceInDays(new Date(), challenge.startDate) + 1 : 1;
+  const TIMEZONE = "Asia/Kolkata";
+  const nowIST = toZonedTime(new Date(), TIMEZONE);
+  const todayIST = startOfDay(nowIST);
+
+  let currentDay = 1;
+  if (challenge.startDate) {
+    const startIST = startOfDay(toZonedTime(challenge.startDate, TIMEZONE));
+    currentDay = differenceInDays(todayIST, startIST) + 1;
+  }
+
+  // Check if I have already submitted today
+  const myTodayEntry = await prisma.dailyEntry.findUnique({
+    where: {
+      userId_challengeId_date: {
+        userId: session.user.id,
+        challengeId: challenge.id,
+        date: todayIST
+      }
+    }
+  });
+
+  const hasSubmittedToday = myTodayEntry && (
+    myTodayEntry.status === "AWAITING_PARTNER_REVIEW" || 
+    myTodayEntry.status === "WORKOUT_APPROVED" || 
+    myTodayEntry.status === "REST"
+  );
+
+  // Get transformation photos
+  const myApprovedProofs = await prisma.proofSubmission.findMany({
+    where: { 
+      userId: session.user.id, 
+      challengeId: challenge.id, 
+      status: "APPROVED" 
+    },
+    orderBy: { createdAt: 'asc' },
+    include: { mediaAsset: true }
+  });
+
+  const firstProof = myApprovedProofs[0] || null;
+  const latestProof = myApprovedProofs.length > 1 ? myApprovedProofs[myApprovedProofs.length - 1] : null;
 
   // Check for pending partner proofs
   const pendingPartnerProof = partner ? await prisma.proofSubmission.findFirst({
@@ -89,12 +131,22 @@ export default async function DashboardPage() {
 
         {/* Action Row */}
         <div className="md:col-span-12 grid grid-cols-1 md:grid-cols-2 border-b border-wab-black">
-          <Link href={`/challenge/${challenge.id}/proof`} className="group p-12 md:p-16 flex flex-col justify-center items-center hover:bg-wab-yellow transition-colors border-b md:border-b-0 md:border-r border-wab-black min-h-[250px]">
-            <span className="font-mono text-sm uppercase font-bold mb-4">Today&apos;s Mission</span>
-            <h2 className="font-display text-6xl md:text-7xl uppercase tracking-tighter leading-none text-center">
-              Take<br />Proof <span className="inline-block group-hover:translate-x-2 transition-transform">→</span>
-            </h2>
-          </Link>
+          {hasSubmittedToday ? (
+            <div className="group p-12 md:p-16 flex flex-col justify-center items-center bg-wab-black text-wab-offwhite border-b md:border-b-0 md:border-r border-wab-black min-h-[250px]">
+              <span className="font-mono text-sm uppercase font-bold mb-4 text-wab-yellow">Today&apos;s Mission Complete</span>
+              <h2 className="font-display text-5xl md:text-6xl uppercase tracking-tighter leading-none text-center">
+                Great Work<br />Today!
+              </h2>
+            </div>
+          ) : (
+            <Link href={`/challenge/${challenge.id}/proof`} className="group p-12 md:p-16 flex flex-col justify-center items-center hover:bg-wab-yellow transition-colors border-b md:border-b-0 md:border-r border-wab-black min-h-[250px]">
+              <span className="font-mono text-sm uppercase font-bold mb-4">Today&apos;s Mission</span>
+              <h2 className="font-display text-6xl md:text-7xl uppercase tracking-tighter leading-none text-center">
+                Take<br />Proof <span className="inline-block group-hover:translate-x-2 transition-transform">→</span>
+              </h2>
+            </Link>
+          )}
+
           <div className="flex flex-col border-b md:border-b-0 md:border-r border-wab-black">
             <div className="flex-1 p-8 md:p-12 flex flex-col justify-center items-center min-h-[150px] bg-wab-offwhite border-b border-wab-black">
               <span className="font-mono text-sm uppercase font-bold mb-4 text-wab-black/70">Partner Status</span>
@@ -111,6 +163,11 @@ export default async function DashboardPage() {
               </span>
             </Link>
           </div>
+        </div>
+
+        {/* Transformation Module */}
+        <div className="md:col-span-12">
+          <TransformationModule firstProof={firstProof} latestProof={latestProof} />
         </div>
 
         {/* Weekly Calendar */}

@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { redirect } from "next/navigation";
@@ -11,7 +11,8 @@ const ProfileSchema = z.object({
 });
 
 export async function updateProfileAction(prevState: unknown, formData: FormData) {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) {
     return { message: "Unauthorized." };
   }

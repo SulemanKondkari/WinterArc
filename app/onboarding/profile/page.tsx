@@ -1,10 +1,11 @@
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
 import { ProfileForm } from "./profile-form";
 
 export default async function ProfilePage() {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 
   const user = await prisma.user.findUnique({

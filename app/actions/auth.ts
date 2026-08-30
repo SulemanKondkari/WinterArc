@@ -1,8 +1,8 @@
 "use server";
 
-import { signIn } from "@/lib/auth";
-import { AuthError } from "next-auth";
+import { auth } from "@/lib/auth/server";
 import { z } from "zod";
+import { redirect } from "next/navigation";
 
 const LoginSchema = z.object({
   email: z.string().email({ message: "Invalid email address" }),
@@ -23,20 +23,18 @@ export async function loginAction(prevState: unknown, formData: FormData) {
   }
 
   try {
-    await signIn("credentials", {
+    const { error } = await auth.signIn.email({
       email,
       password,
-      redirectTo: "/dashboard",
     });
-  } catch (error) {
-    if (error instanceof AuthError) {
-      switch (error.type) {
-        case "CredentialsSignin":
-          return { message: "Invalid credentials." };
-        default:
-          return { message: "Something went wrong." };
-      }
+
+    if (error) {
+      return { message: error.message || "Invalid credentials." };
     }
-    throw error;
+  } catch (error) {
+    console.error("Login error:", error);
+    return { message: "Something went wrong." };
   }
+
+  redirect("/dashboard");
 }

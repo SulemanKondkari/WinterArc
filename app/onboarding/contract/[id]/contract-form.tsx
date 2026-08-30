@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { setContractAction } from "@/app/actions/contract";
 import { cn } from "@/lib/utils";
 import { useFormStatus } from "react-dom";
+import { SignaturePad } from "@/components/ui/signature-pad";
 
 export function ContractForm({ challengeId }: { challengeId: string }) {
   const [state, action] = useActionState(setContractAction, undefined);
@@ -22,6 +23,9 @@ export function ContractForm({ challengeId }: { challengeId: string }) {
         />
         {state?.errors?.text && <p className="text-wab-red text-xs font-mono">{state.errors.text}</p>}
       </div>
+
+      <SignaturePad name="signature" />
+      {state?.errors?.signature && <p className="text-wab-red text-xs font-mono">{state.errors.signature}</p>}
 
       {state?.message && <p className="text-wab-red text-sm font-mono font-bold">{state.message}</p>}
 

@@ -2,7 +2,7 @@ import { defineConfig } from "@neon/config/v1";
 
 export default defineConfig({
   // Declare your Neon services here
-  auth: false,
+  auth: true,
   preview: {
     buckets: {
       "winter-arc-proofs": { access: "public_read" },

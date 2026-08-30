@@ -1,13 +1,14 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { uploadMedia } from "@/lib/storage";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 
 export async function submitPhysiqueAction(formData: FormData) {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { error: "Unauthorized." };
 
   const image = formData.get("image") as File;

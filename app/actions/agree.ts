@@ -1,6 +1,6 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { redirect } from "next/navigation";
@@ -8,16 +8,19 @@ import { redirect } from "next/navigation";
 const AgreeSchema = z.object({
   challengeId: z.string().min(1),
   agree: z.string().refine(val => val === "on", { message: "You must agree to the contract." }),
+  signature: z.string().min(20, { message: "Please provide a signature." }),
 });
 
 export async function agreeContractAction(prevState: unknown, formData: FormData) {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { message: "Unauthorized." };
 
   const challengeId = formData.get("challengeId") as string;
   const agree = formData.get("agree") as string;
+  const signature = formData.get("signature") as string;
 
-  const validatedFields = AgreeSchema.safeParse({ challengeId, agree });
+  const validatedFields = AgreeSchema.safeParse({ challengeId, agree, signature });
 
   if (!validatedFields.success) {
     return {
@@ -41,7 +44,10 @@ export async function agreeContractAction(prevState: unknown, formData: FormData
     await prisma.$transaction([
       prisma.challengeContract.update({
         where: { challengeId },
-        data: { agreedByBoth: true }
+        data: { 
+          agreedByBoth: true,
+          signature2: validatedFields.data.signature
+        }
       }),
       prisma.challenge.update({
         where: { id: challengeId },

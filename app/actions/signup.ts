@@ -1,7 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/db";
-import bcrypt from "bcryptjs";
+import { auth } from "@/lib/auth/server";
 import { z } from "zod";
 import { redirect } from "next/navigation";
 
@@ -26,30 +26,30 @@ export async function signupAction(prevState: unknown, formData: FormData) {
   }
 
   try {
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    const { data, error } = await auth.signUp.email({
+      email,
+      password,
+      name,
     });
 
-    if (existingUser) {
-      return { message: "User with this email already exists." };
+    if (error) {
+      return { message: error.message || "Failed to create account. Please try again." };
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    await prisma.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-      },
-    });
-
-    // Successfully created user
+    if (data?.user) {
+      // Sync user to Prisma for foreign keys
+      await prisma.user.create({
+        data: {
+          id: data.user.id,
+          name: data.user.name,
+          email: data.user.email,
+        },
+      });
+    }
   } catch (error) {
     console.error("Signup error:", error);
     return { message: "Failed to create account. Please try again." };
   }
 
-  // Redirect to login page after successful signup
   redirect("/login");
 }

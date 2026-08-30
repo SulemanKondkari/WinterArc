@@ -1,10 +1,9 @@
 "use server";
 
-import { auth } from "@/lib/auth";
+import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { uploadMedia } from "@/lib/storage";
 import { redirect } from "next/navigation";
-import { startOfDay } from "date-fns";
 import { z } from "zod";
 
 const ProofSchema = z.object({
@@ -14,7 +13,8 @@ const ProofSchema = z.object({
 });
 
 export async function submitProofAction(formData: FormData) {
-  const session = await auth();
+  const { data: _authData } = await auth.getSession();
+  const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { error: "Unauthorized." };
 
   const image = formData.get("image") as File;
@@ -38,15 +38,18 @@ export async function submitProofAction(formData: FormData) {
 
     if (!membership) return { error: "Not part of this challenge." };
 
-    // Get or create DailyEntry for today (using user's timezone eventually, UTC for now)
-    const today = startOfDay(new Date());
+    const { toZonedTime } = await import("date-fns-tz");
+    const { startOfDay } = await import("date-fns");
+    const TIMEZONE = "Asia/Kolkata";
+    const nowIST = toZonedTime(new Date(), TIMEZONE);
+    const todayIST = startOfDay(nowIST);
     
     let dailyEntry = await prisma.dailyEntry.findUnique({
       where: {
         userId_challengeId_date: {
           userId: session.user.id,
           challengeId,
-          date: today
+          date: todayIST
         }
       }
     });
@@ -56,14 +59,14 @@ export async function submitProofAction(formData: FormData) {
         data: {
           userId: session.user.id,
           challengeId,
-          date: today,
+          date: todayIST,
           status: "PENDING"
         }
       });
     }
 
-    if (dailyEntry.status === "WORKOUT_APPROVED" || dailyEntry.status === "REST") {
-      return { error: "You have already completed today's requirement." };
+    if (dailyEntry.status === "WORKOUT_APPROVED" || dailyEntry.status === "REST" || dailyEntry.status === "AWAITING_PARTNER_REVIEW") {
+      return { error: "You have already submitted a proof for today." };
     }
 
     // Process image

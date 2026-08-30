@@ -99,6 +99,8 @@ model ChallengeContract {
   id            String   @id @default(cuid())
   challengeId   String   @unique
   text          String
+  signature1    String?  // Base64 data URL
+  signature2    String?  // Base64 data URL
   agreedByBoth  Boolean  @default(false)
   createdAt     DateTime @default(now())
   
