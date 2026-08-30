@@ -1,0 +1,195 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String?   @unique
+  emailVerified DateTime?
+  password      String?
+  image         String?
+  timezone      String?   @default("UTC")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  memberships   ChallengeMember[]
+  dailyEntries    DailyEntry[]
+  restDays        RestDay[]
+  lifeEvents      LifeEvent[]
+  proofs          ProofSubmission[]
+  mediaAssets     MediaAsset[]
+  reviewsMade     ProofReview[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Challenge {
+  id              String   @id @default(cuid())
+  inviteCode      String   @unique
+  status          String   @default("DRAFT") // DRAFT, WAITING_FOR_PARTNER, ACTIVE, COMPLETED
+  
+  // Rules
+  durationDays    Int      @default(90)
+  startDate       DateTime?
+  endDate         DateTime?
+  startingLives   Int      @default(3)
+  allowedRestDays Int      @default(2)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  members         ChallengeMember[]
+  contract        ChallengeContract?
+  dailyEntries    DailyEntry[]
+  restDays        RestDay[]
+  lifeEvents      LifeEvent[]
+  proofs          ProofSubmission[]
+}
+
+model ChallengeMember {
+  id            String   @id @default(cuid())
+  userId        String
+  challengeId   String
+  status        String   @default("JOINED") // JOINED, ACTIVE, COMPLETED, DISQUALIFIED
+  
+  lives         Int      @default(3)
+  streak        Int      @default(0)
+  
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge     Challenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, challengeId])
+}
+
+model ChallengeContract {
+  id            String   @id @default(cuid())
+  challengeId   String   @unique
+  text          String
+  agreedByBoth  Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  
+  challenge     Challenge @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+}
+
+model DailyEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  challengeId     String
+  date            DateTime // Normalized to user's timezone start of day
+  status          String   @default("PENDING") // PENDING, WORKOUT_APPROVED, WORKOUT_REJECTED, REST, MISSED
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge       Challenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  proof           ProofSubmission?
+  
+  @@unique([userId, challengeId, date])
+}
+
+model RestDay {
+  id              String   @id @default(cuid())
+  userId          String
+  challengeId     String
+  date            DateTime
+  causedLifeLoss  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge       Challenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+}
+
+model LifeEvent {
+  id              String   @id @default(cuid())
+  userId          String
+  challengeId     String
+  previousBalance Int
+  amount          Int
+  newBalance      Int
+  reason          String
+  source          String   @default("SYSTEM") // SYSTEM, ADMIN
+  createdAt       DateTime @default(now())
+  
+  user            User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge       Challenge  @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+}
+
+model ProofSubmission {
+  id              String   @id @default(cuid())
+  userId          String
+  challengeId     String
+  dailyEntryId    String   @unique
+  mediaAssetId    String
+  workoutType     String?
+  notes           String?
+  status          String   @default("SUBMITTED") // SUBMITTED, PROCESSING, AWAITING_PARTNER_REVIEW, APPROVED, REJECTED, FLAGGED, INVALID
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  challenge       Challenge    @relation(fields: [challengeId], references: [id], onDelete: Cascade)
+  dailyEntry      DailyEntry   @relation(fields: [dailyEntryId], references: [id], onDelete: Cascade)
+  mediaAsset      MediaAsset   @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  reviews         ProofReview[]
+}
+
+model MediaAsset {
+  id              String   @id @default(cuid())
+  ownerId         String
+  challengeId     String?
+  storageKey      String
+  mimeType        String
+  sizeBytes       Int
+  type            String   @default("PROOF") // PROOF, PHYSIQUE
+  createdAt       DateTime @default(now())
+
+  owner           User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  proofs          ProofSubmission[]
+}
+
+model ProofReview {
+  id                String   @id @default(cuid())
+  proofSubmissionId String
+  reviewerId        String
+  decision          String   // APPROVED, REJECTED
+  reason            String?
+  createdAt         DateTime @default(now())
+
+  proofSubmission   ProofSubmission @relation(fields: [proofSubmissionId], references: [id], onDelete: Cascade)
+  reviewer          User            @relation(fields: [reviewerId], references: [id], onDelete: Cascade)
+}
