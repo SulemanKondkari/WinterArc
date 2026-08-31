@@ -1,15 +1,51 @@
 "use client";
 
-import { useActionState } from "react";
-import { loginAction } from "@/app/actions/auth";
+import { useState } from "react";
+import { authClient } from "@/lib/auth/client";
 import { cn } from "@/lib/utils";
-import { useFormStatus } from "react-dom";
+import { useRouter } from "next/navigation";
 
 export function LoginForm() {
-  const [state, action] = useActionState(loginAction, undefined);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const router = useRouter();
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setError(null);
+    setPending(true);
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    if (!email || !password) {
+      setError("Please fill in all fields.");
+      setPending(false);
+      return;
+    }
+
+    try {
+      const { data, error: authError } = await authClient.signIn.email({
+        email,
+        password,
+      });
+
+      if (authError) {
+        setError(authError.message || "Invalid credentials.");
+        setPending(false);
+        return;
+      }
+
+      router.push("/dashboard");
+    } catch (err) {
+      setError("An unexpected error occurred.");
+      setPending(false);
+    }
+  }
 
   return (
-    <form action={action} className="flex flex-col gap-6">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-6">
       <div className="flex flex-col gap-2">
         <label className="font-mono text-sm uppercase font-bold" htmlFor="email">Email</label>
         <input 
@@ -19,7 +55,6 @@ export function LoginForm() {
           className="border border-wab-black p-3 font-sans outline-none focus:ring-2 focus:ring-wab-yellow"
           required 
         />
-        {state?.errors?.email && <p className="text-wab-red text-xs font-mono">{state.errors.email}</p>}
       </div>
       
       <div className="flex flex-col gap-2">
@@ -31,29 +66,21 @@ export function LoginForm() {
           className="border border-wab-black p-3 font-sans outline-none focus:ring-2 focus:ring-wab-yellow"
           required 
         />
-        {state?.errors?.password && <p className="text-wab-red text-xs font-mono">{state.errors.password}</p>}
       </div>
 
-      {state?.message && <p className="text-wab-red text-sm font-mono font-bold">{state.message}</p>}
+      {error && <p className="text-wab-red text-sm font-mono font-bold">{error}</p>}
 
-      <SubmitButton />
+      <button 
+        type="submit" 
+        disabled={pending}
+        className={cn(
+          "w-full bg-wab-black text-wab-offwhite font-display text-2xl uppercase tracking-widest p-4 transition-colors",
+          "hover:bg-wab-yellow hover:text-wab-black",
+          pending && "opacity-50 cursor-not-allowed"
+        )}
+      >
+        {pending ? "Authenticating..." : "Login →"}
+      </button>
     </form>
-  );
-}
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <button 
-      type="submit" 
-      disabled={pending}
-      className={cn(
-        "w-full bg-wab-black text-wab-offwhite font-display text-2xl uppercase tracking-widest p-4 transition-colors",
-        "hover:bg-wab-yellow hover:text-wab-black",
-        pending && "opacity-50 cursor-not-allowed"
-      )}
-    >
-      {pending ? "Authenticating..." : "Login →"}
-    </button>
   );
 }
