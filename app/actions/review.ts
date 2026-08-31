@@ -3,8 +3,9 @@
 import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { revalidatePath } from "next/cache";
+import { z } from "zod";
 
-export async function reviewProofAction(proofId: string, decision: "APPROVED" | "REJECTED" | "REST", reason?: string) {
+export async function reviewProofAction(proofId: string, decision: "APPROVED" | "REJECTED" | "REST" | "RESET", reason?: string) {
   const { data: _authData } = await auth.getSession();
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { error: "Unauthorized." };
@@ -24,6 +25,21 @@ export async function reviewProofAction(proofId: string, decision: "APPROVED" | 
     const isMember = proof.challenge.members.some(m => m.userId === session.user?.id);
     if (!isMember || proof.userId === session.user?.id) {
       return { error: "Unauthorized to review this proof." };
+    }
+
+    if (decision === "RESET") {
+      await prisma.$transaction([
+        prisma.proofSubmission.delete({
+          where: { id: proof.id }
+        }),
+        prisma.dailyEntry.update({
+          where: { id: proof.dailyEntryId },
+          data: { status: "PENDING" }
+        })
+      ]);
+      
+      revalidatePath("/dashboard");
+      return { success: true };
     }
 
     if (decision === "REST") {

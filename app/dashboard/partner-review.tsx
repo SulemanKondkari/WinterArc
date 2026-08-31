@@ -9,11 +9,12 @@ type ProofType = { id: string; user: { name: string | null }; workoutType: strin
 export function PartnerReview({ proof }: { proof: ProofType }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleReview = async (decision: "APPROVED" | "REJECTED" | "REST") => {
+  const handleReview = async (decision: "APPROVED" | "REJECTED" | "REST" | "RESET") => {
     setIsSubmitting(true);
     let reason = undefined;
     if (decision === "REJECTED") reason = "Insufficient proof.";
     if (decision === "REST") reason = "Partner marked as rest day.";
+    if (decision === "RESET") reason = "Partner requested reset.";
     await reviewProofAction(proof.id, decision, reason);
     setIsSubmitting(false);
   };
@@ -60,6 +61,14 @@ export function PartnerReview({ proof }: { proof: ProofType }) {
             className="flex-1 p-6 bg-neutral-300 hover:bg-neutral-400 text-wab-black flex items-center justify-center border-b sm:border-b-0 sm:border-r border-wab-black font-display text-2xl md:text-3xl uppercase tracking-widest transition-colors disabled:opacity-50"
           >
             Rest Day
+          </button>
+
+          <button 
+            onClick={() => handleReview("RESET")}
+            disabled={isSubmitting}
+            className="flex-1 p-6 bg-wab-yellow hover:bg-yellow-500 text-wab-black flex items-center justify-center border-b sm:border-b-0 sm:border-r border-wab-black font-display text-2xl md:text-3xl uppercase tracking-widest transition-colors disabled:opacity-50"
+          >
+            Reset
           </button>
 
           <button 
