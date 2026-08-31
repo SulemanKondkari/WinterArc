@@ -1,11 +1,16 @@
 import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { CameraCapture } from "./camera-capture";
 
 export default async function ProofPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 

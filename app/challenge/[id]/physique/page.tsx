@@ -1,13 +1,18 @@
 import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Image from "next/image";
 import Link from "next/link";
 import { format } from "date-fns";
 
 export default async function PhysiquePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 

@@ -4,13 +4,18 @@ import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { z } from "zod";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 const JoinSchema = z.object({
   code: z.string().length(6, { message: "Code must be exactly 6 characters." }).toUpperCase(),
 });
 
 export async function joinChallengeAction(prevState: unknown, formData: FormData) {
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { message: "Unauthorized." };
 

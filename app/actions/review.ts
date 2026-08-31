@@ -2,11 +2,16 @@
 
 import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 export async function reviewProofAction(proofId: string, decision: "APPROVED" | "REJECTED" | "REST" | "RESET", reason?: string) {
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { error: "Unauthorized." };
 

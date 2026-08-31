@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { uploadMedia } from "@/lib/storage";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { z } from "zod";
 
 const ProofSchema = z.object({
@@ -13,7 +14,11 @@ const ProofSchema = z.object({
 });
 
 export async function submitProofAction(formData: FormData) {
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) return { error: "Unauthorized." };
 

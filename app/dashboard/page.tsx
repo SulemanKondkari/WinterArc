@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Link from "next/link";
 import { differenceInDays, startOfDay } from "date-fns";
 import { toZonedTime } from "date-fns-tz";
@@ -10,7 +11,11 @@ import { PartnerReview } from "./partner-review";
 import { TransformationModule } from "./transformation-module";
 
 export default async function DashboardPage() {
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.id) redirect("/login");
 

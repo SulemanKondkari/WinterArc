@@ -1,10 +1,15 @@
 import { auth } from "@/lib/auth/server";
 import { prisma } from "@/lib/db";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import Image from "next/image";
 
 export default async function AdminDashboardPage() {
-  const { data: _authData } = await auth.getSession();
+  const { data: _authData } = await auth.getSession({
+    fetchOptions: {
+      headers: await headers()
+    }
+  });
   const session = _authData ? { user: _authData.user } : null;
   if (!session?.user?.email) redirect("/login");
 
